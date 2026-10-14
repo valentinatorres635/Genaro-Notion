@@ -15,7 +15,7 @@
 <style>
   .card { width:100%; max-width:480px; padding:20px 20px 18px; display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; }
   .photo { position:relative; width:100%; aspect-ratio:4/3; overflow:hidden; background:var(--pale);
-           border-radius:20px; border:6px solid #fff; outline:1px solid var(--line); margin:2px 0; }
+           border-radius:20px; border:2px solid var(--slate); margin:2px 0; }
   .slide { position:absolute; inset:0; opacity:0; transition:opacity 1.2s ease; }
   .slide.show { opacity:1; }
   .slide .fill { position:absolute; inset:-24px; background-size:cover; background-position:center;
@@ -23,7 +23,7 @@
   .slide img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; object-position:center; }
   /* soft misty tint */
   .photo::after { content:""; position:absolute; inset:0; pointer-events:none; z-index:2;
-    background:linear-gradient(160deg, rgba(208,214,214,.22), transparent 45%, rgba(4,38,48,.12)); }
+    background:linear-gradient(160deg, rgba(208,214,214,.2), transparent 45%, rgba(4,38,48,.12)); }
   .empty { position:absolute; inset:0; display:grid; place-items:center; padding:24px; z-index:3; font-size:16px; color:var(--moss); }
   .empty[hidden] { display:none; }
   .bar { display:flex; align-items:center; justify-content:center; gap:10px; }

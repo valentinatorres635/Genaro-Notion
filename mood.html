@@ -23,10 +23,10 @@
 
   .week { display:flex; gap:4px; justify-content:center; }
   .day { width:34px; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:13px; color:var(--moss); }
-  .slot { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; background:var(--pale); border:1px dashed rgba(76,114,115,.35); }
-  .slot.filled { border:1px solid var(--line); background:#fff; }
-  .day.today { color:var(--ink); font-weight:700; }
-  .day.today .slot { border:1.5px solid var(--seaglass); background:#fff; }
+  .slot { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; background:var(--mistc); border:1.5px dashed var(--slate); }
+  .slot.filled { border:1.5px solid var(--slate); background:var(--mistc); }
+  .day.today { color:var(--night); font-weight:700; }
+  .day.today .slot { border:2px solid var(--deep); background:var(--seaglass); }
 
   .ask { font-family:var(--title); font-size:16px; font-weight:400; margin-top:4px; }
   .moods { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px 8px; width:100%; padding:0 4px; }
@@ -55,15 +55,15 @@
 
 <script>
   /* ---------- Palette: #041421 #042630 #4c7273 #86b9b0 #d0d6d6 ---------- */
-  const C = { night:"#041421", deep:"#042630", slate:"#4c7273", sea:"#86b9b0", mist:"#d0d6d6", paper:"#f4f6f6", line:"#4c7273" };
-  // Same colour pattern as before (yellow, lavender, pink, grey, blue, clay), softened into the misty palette
+  const C = { night:"#041421", deep:"#042630", slate:"#4c7273", sea:"#86b9b0", mist:"#d0d6d6", paper:"#d0d6d6", line:"#4c7273" };
+  // Each mood is a different flower drawn only in the five palette colours
   const MOODS = [
-    { id:"joyful",   label:"Joyful",   petal:"#ece3c4", center:"#4c7273", petals:10, shape:"long"  },
-    { id:"calm",     label:"Calm",     petal:"#c3c6de", center:"#f4f6f6", petals:6,  shape:"round" },
-    { id:"loved",    label:"Loved",    petal:"#e2c7cd", center:"#4c7273", petals:5,  shape:"heart" },
-    { id:"tired",    label:"Tired",    petal:"#d0d6d6", center:"#86b9b0", petals:7,  shape:"round" },
-    { id:"down",     label:"Down",     petal:"#9db6c4", center:"#f4f6f6", petals:5,  shape:"round" },
-    { id:"stressed", label:"Stressed", petal:"#d6b7a8", center:"#042630", petals:9,  shape:"long"  },
+    { id:"joyful",   label:"Joyful",   petal:"#86b9b0", center:"#041421", petals:10, shape:"long"  },
+    { id:"calm",     label:"Calm",     petal:"#d0d6d6", center:"#86b9b0", petals:6,  shape:"round" },
+    { id:"loved",    label:"Loved",    petal:"#86b9b0", center:"#d0d6d6", petals:5,  shape:"heart" },
+    { id:"tired",    label:"Tired",    petal:"#d0d6d6", center:"#4c7273", petals:7,  shape:"round" },
+    { id:"down",     label:"Down",     petal:"#4c7273", center:"#d0d6d6", petals:5,  shape:"round" },
+    { id:"stressed", label:"Stressed", petal:"#042630", center:"#86b9b0", petals:9,  shape:"long"  },
   ];
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   // tip of each weekday's stem, fanning out of the vase as the week fills
@@ -99,9 +99,9 @@
         parts.push(`<circle cx="${cx}" cy="${cy - r * .55}" r="${r * .48}" transform="rotate(${a} ${cx} ${cy})"/>`);
     }
     return `<g class="${cls}">
-      <g fill="${m.petal}" stroke="${C.line}" stroke-opacity=".55" stroke-width="1" stroke-linejoin="round">${parts.join("")}</g>
-      <circle cx="${cx}" cy="${cy}" r="${r * .3}" fill="${m.center}" stroke="${C.line}" stroke-opacity=".5" stroke-width="1"/>
-      <circle cx="${cx - r * .1}" cy="${cy - r * .1}" r="${r * .08}" fill="#fff" opacity=".85"/>
+      <g fill="${m.petal}" stroke="#042630" stroke-opacity=".7" stroke-width="1" stroke-linejoin="round">${parts.join("")}</g>
+      <circle cx="${cx}" cy="${cy}" r="${r * .3}" fill="${m.center}" stroke="#042630" stroke-opacity=".7" stroke-width="1"/>
+      <circle cx="${cx - r * .1}" cy="${cy - r * .1}" r="${r * .08}" fill="#d0d6d6" opacity=".85"/>
     </g>`;
   }
   const flowerIcon = (m, size) => `<svg viewBox="0 0 40 40" width="${size}" height="${size}" aria-hidden="true">${flowerSVG(m, 20, 20, 16)}</svg>`;
@@ -122,26 +122,26 @@
     return `
       <defs>
         <linearGradient id="glass" x1="0" x2="1">
-          <stop offset="0" stop-color="${C.mist}" stop-opacity=".9"/><stop offset=".3" stop-color="#fff" stop-opacity=".35"/>
-          <stop offset=".75" stop-color="#fff" stop-opacity=".2"/><stop offset="1" stop-color="${C.mist}" stop-opacity=".85"/>
+          <stop offset="0" stop-color="${C.slate}" stop-opacity=".35"/><stop offset=".3" stop-color="${C.mist}" stop-opacity=".15"/>
+          <stop offset=".75" stop-color="${C.mist}" stop-opacity=".1"/><stop offset="1" stop-color="${C.slate}" stop-opacity=".3"/>
         </linearGradient>
         <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="${C.sea}" stop-opacity=".35"/><stop offset="1" stop-color="${C.sea}" stop-opacity=".6"/>
         </linearGradient>
         <clipPath id="inside"><path d="${VASE}"/></clipPath>
       </defs>
-      <path d="M24 196 H176" stroke="${C.mist}" stroke-width="2" stroke-linecap="round"/>
+      <path d="M24 196 H176" stroke="${C.slate}" stroke-width="2" stroke-linecap="round"/>
       <g fill="none" stroke="${C.slate}" stroke-width="2.2" stroke-linecap="round" opacity=".85">${stems}</g>
       <g clip-path="url(#inside)">
         <rect x="40" y="148" width="120" height="60" fill="url(#water)"/>
-        <path d="M50 148 Q100 152 150 148" fill="none" stroke="#fff" stroke-width="1.4" opacity=".9"/>
+        <path d="M50 148 Q100 152 150 148" fill="none" stroke="#d0d6d6" stroke-width="1.4" opacity=".9"/>
         <path d="${VASE}" fill="url(#glass)"/>
       </g>
-      <path d="${VASE}" fill="none" stroke="${C.slate}" stroke-opacity=".7" stroke-width="1.4" stroke-linejoin="round"/>
-      <ellipse cx="100" cy="112" rx="14" ry="3" fill="#fff" fill-opacity=".7" stroke="${C.slate}" stroke-opacity=".6" stroke-width="1.2"/>
-      <path d="M66 158 C64 170 68 180 76 186" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity=".95"/>
-      <path d="M91 116 L91 127" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".9"/>
-      <g fill="#fff" opacity=".9"><circle cx="128" cy="162" r="1.6"/><circle cx="72" cy="150" r="1.4"/></g>
+      <path d="${VASE}" fill="none" stroke="${C.deep}" stroke-width="1.5" stroke-linejoin="round"/>
+      <ellipse cx="100" cy="112" rx="14" ry="3" fill="#d0d6d6" fill-opacity=".7" stroke="${C.slate}" stroke-opacity=".6" stroke-width="1.2"/>
+      <path d="M66 158 C64 170 68 180 76 186" fill="none" stroke="#d0d6d6" stroke-width="3.5" stroke-linecap="round" opacity=".95"/>
+      <path d="M91 116 L91 127" stroke="#d0d6d6" stroke-width="2" stroke-linecap="round" opacity=".9"/>
+      <g fill="#d0d6d6" opacity=".9"><circle cx="128" cy="162" r="1.6"/><circle cx="72" cy="150" r="1.4"/></g>
       <g fill="${C.sea}" stroke="${C.slate}" stroke-opacity=".5" stroke-width="1" stroke-linejoin="round">${leaves}</g>
       ${blooms}`;
   }
@@ -183,14 +183,12 @@
     const ctx = c.getContext("2d");
     try { await Promise.all([document.fonts.load('80px "Kiwi Maru"'), document.fonts.load('500 36px "Zen Maru Gothic"')]); } catch (e) {}
 
-    ctx.fillStyle = C.mist; ctx.fillRect(0, 0, W, H);
-    const g = ctx.createLinearGradient(0, 80, 0, 1270);
-    g.addColorStop(0, "#fbfcfc"); g.addColorStop(1, "#eef2f2");
-    roundRect(ctx, 80, 80, 920, 1190, 70); ctx.fillStyle = g; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(76,114,115,.3)"; ctx.stroke();
+    ctx.fillStyle = C.deep; ctx.fillRect(0, 0, W, H);
+    roundRect(ctx, 80, 80, 920, 1190, 70); ctx.fillStyle = C.mist; ctx.fill();
+    ctx.lineWidth = 5; ctx.strokeStyle = C.slate; ctx.stroke();
 
     ctx.textAlign = "center";
-    ctx.font = '500 84px "Kiwi Maru", serif'; ctx.fillStyle = C.deep; ctx.fillText("Mood garden", W / 2, 240);
+    ctx.font = '500 84px "Kiwi Maru", serif'; ctx.fillStyle = C.night; ctx.fillText("Mood garden", W / 2, 240);
     ctx.font = '500 38px "Zen Maru Gothic", sans-serif'; ctx.fillStyle = C.slate;
     ctx.fillText(`My bouquet · ${weekLabel}`, W / 2, 305);
 
@@ -201,8 +199,8 @@
     for (let i = 0; i < 7; i++) {
       const x = startX + i * 110, y = 1090, m = MOODS.find(k => k.id === data.picks[i]);
       ctx.beginPath(); ctx.arc(x, y, 40, 0, Math.PI * 2);
-      ctx.fillStyle = m ? "#fff" : "#e6ebeb"; ctx.fill();
-      ctx.lineWidth = 2.5; ctx.setLineDash(m ? [] : [7, 7]); ctx.strokeStyle = "rgba(76,114,115,.4)"; ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = C.mist; ctx.fill();
+      ctx.lineWidth = 2.5; ctx.setLineDash(m ? [] : [7, 7]); ctx.strokeStyle = C.slate; ctx.stroke(); ctx.setLineDash([]);
       if (m) ctx.drawImage(await svgImage(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="64" height="64">${flowerSVG(m, 20, 20, 16)}</svg>`), x - 32, y - 32, 64, 64);
       ctx.font = '500 28px "Zen Maru Gothic", sans-serif'; ctx.fillStyle = C.slate;
       ctx.fillText(DAYS[i], x, y + 80);
