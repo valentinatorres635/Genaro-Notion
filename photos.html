@@ -6,7 +6,7 @@
 <title>Photo of the day</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="theme.css">
 <script>
   /* Keeps the page see-through inside Notion. If your Notion is in dark mode, add ?dark to the embed link */
@@ -15,19 +15,19 @@
 <style>
   .card { width:100%; max-width:480px; padding:20px 20px 18px; display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; }
   .photo { position:relative; width:100%; aspect-ratio:4/3; overflow:hidden; background:var(--pale);
-           box-shadow:0 0 0 3px var(--ink), 0 0 0 7px var(--sage), 0 0 0 10px var(--ink); margin:8px 0 6px; }
-  .slide { position:absolute; inset:0; opacity:0; transition:opacity .8s steps(6); }
+           border-radius:20px; border:6px solid #fff; outline:1px solid var(--line); margin:2px 0; }
+  .slide { position:absolute; inset:0; opacity:0; transition:opacity 1.2s ease; }
   .slide.show { opacity:1; }
   .slide .fill { position:absolute; inset:-24px; background-size:cover; background-position:center;
                  filter:blur(18px) saturate(.8) brightness(.95); }
-  .slide img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; object-position:center; image-rendering:auto; }
-  /* soft rainy-window tint and pixel corner notches */
+  .slide img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; object-position:center; }
+  /* soft misty tint */
   .photo::after { content:""; position:absolute; inset:0; pointer-events:none; z-index:2;
-    background:linear-gradient(160deg, rgba(180,225,221,.18), transparent 40%, rgba(22,47,44,.18)); }
+    background:linear-gradient(160deg, rgba(208,214,214,.22), transparent 45%, rgba(4,38,48,.12)); }
   .empty { position:absolute; inset:0; display:grid; place-items:center; padding:24px; z-index:3; font-size:16px; color:var(--moss); }
   .empty[hidden] { display:none; }
   .bar { display:flex; align-items:center; justify-content:center; gap:10px; }
-  .bar .arrow { width:40px; height:36px; font-family:var(--title); font-size:12px; padding:0; }
+  .bar .arrow { width:38px; height:38px; font-size:12px; padding:0; }
   .count { font-size:14px; color:var(--moss); }
   .px-dots { max-width:260px; min-height:10px; }
   @media (prefers-reduced-motion: reduce) { .slide { transition:none; } }
