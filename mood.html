@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mood garden</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
+<script>
+  /* Keeps the page see-through inside Notion. If your Notion is in dark mode, add ?dark to the embed link */
+  if (/[?&]dark\b/.test(location.search)) document.documentElement.style.colorScheme = "dark";
+</script>
+<style>
+  .card { width:100%; max-width:336px; padding:20px 14px 16px; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center; }
+  .bouquet { position:relative; width:100%; max-width:208px; aspect-ratio:1; }
+  .bouquet svg { width:100%; height:100%; display:block; }
+  .hint { position:absolute; left:0; right:0; top:22%; font-size:15px; color:var(--moss); padding:0 18px; }
+  .hint[hidden] { display:none; }
+  .pop { animation:pop .45s steps(4); transform-origin:50% 50%; transform-box:fill-box; }
+  @keyframes pop { from { transform:scale(.2) } to { transform:scale(1) } }
+
+  .week { display:flex; gap:4px; justify-content:center; }
+  .day { width:34px; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:13px; color:var(--moss); }
+  .slot { width:30px; height:30px; display:grid; place-items:center; background:var(--pale);
+          box-shadow:0 0 0 2px var(--mist); }
+  .slot.filled { box-shadow:0 0 0 2px var(--ink); background:#f3faf8; }
+  .day.today { color:var(--ink); font-weight:600; }
+  .day.today .slot { box-shadow:0 0 0 2px var(--ink), 0 0 0 5px var(--glow); }
+
+  .ask { font-size:17px; font-weight:600; margin-top:4px; }
+  .moods { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px 8px; width:100%; padding:0 4px; }
+  .mood { display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px; font-size:14px; }
+  .foot { font-size:13px; color:var(--moss); }
+  @media (prefers-reduced-motion: reduce) { .pop { animation:none; } }
+</style>
+</head>
+<body>
+<main class="card px-card">
+  <h1 class="px-title">Mood garden</h1>
+  <p class="px-sub" id="sub">This week's bouquet</p>
+
+  <div class="bouquet">
+    <svg id="jar" viewBox="0 0 64 64" role="img" aria-label="This week's bouquet"></svg>
+    <p class="hint" id="hint">Pick a flower to start your bouquet ♥</p>
+  </div>
+
+  <div class="week" id="week"></div>
+
+  <p class="ask" id="ask">How are you feeling today?</p>
+  <div class="moods" id="moods"></div>
+  <button class="px-btn primary" id="save">Download bouquet ♥</button>
+  <p class="foot">A new bouquet starts every Monday</p>
+</main>
+
+<script>
+  /* ---------- Pixel palette (rainy-window colours) ---------- */
+  const C = {
+    ink:"#162f2c", glass:"#c9e6e2", glassEdge:"#a9d3cf", water:"#9ec9c3", waterEdge:"#86b5ae",
+    stemGlass:"#6f9a86", stemWater:"#5f8a78", rim:"#e7f3f0", hi:"#f6fbfa",
+    stem:"#45755c", leaf:"#73aa69", leafDark:"#45755c", glow:"#f5d79f",
+    sillTop:"#aa9c83", sill:"#786a5e", sillShade:"#5e5248",
+  };
+  // Same colour pattern as before (yellow, lavender, pink, grey, blue, orange), tuned to the rainy-window palette
+  const MOODS = [
+    { id:"joyful",   label:"Joyful",   petal:"#f5d79f", center:"#9a7a55", petals:8,  shape:"long"  },
+    { id:"calm",     label:"Calm",     petal:"#a39bcb", center:"#f5d79f", petals:6,  shape:"round" },
+    { id:"loved",    label:"Loved",    petal:"#ebbbd8", center:"#bb7fa3", petals:5,  shape:"big"   },
+    { id:"tired",    label:"Tired",    petal:"#bdccbe", center:"#869881", petals:7,  shape:"round" },
+    { id:"down",     label:"Down",     petal:"#8fb4c9", center:"#f5d79f", petals:5,  shape:"round" },
+    { id:"stressed", label:"Stressed", petal:"#e3a27f", center:"#786a5e", petals:10, shape:"long"  },
+  ];
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  // where each weekday's flower sits (grid cells), fanning out as the week fills
+  const SPOTS = [ {x:32,y:16,s:15}, {x:18,y:21,s:13}, {x:46,y:21,s:13}, {x:24,y:7,s:13}, {x:40,y:7,s:13}, {x:9,y:31,s:11}, {x:55,y:31,s:11} ];
+  const G = 64;
+
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const localDate = d => d.toLocaleDateString("en-CA");
+  const now = new Date();
+  const dayIdx = (now.getDay() + 6) % 7;
+  const monday = new Date(now); monday.setDate(now.getDate() - dayIdx);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  const weekKey = localDate(monday);
+  const fmt = d => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const weekLabel = `${fmt(monday)} – ${fmt(sunday)}`;
+
+  let data = store.get("moodGarden");
+  if (!data || data.week !== weekKey) data = { week: weekKey, picks: Array(7).fill(null) };
+
+  /* ---------- Pixel sprites ---------- */
+  // Rasterise a flower onto an s×s grid, then trace a 1-pixel ink outline around it
+  function shade(hex, t) { // mix a colour toward ink for petal depth
+    const a = parseInt(hex.slice(1), 16), b = parseInt(C.ink.slice(1), 16);
+    const mix = (sh) => Math.round(((a >> sh) & 255) * (1 - t) + ((b >> sh) & 255) * t);
+    return "#" + [16, 8, 0].map(sh => mix(sh).toString(16).padStart(2, "0")).join("");
+  }
+  // Rasterise a flower onto an s×s grid, then trace a 1-pixel ink outline around each petal
+  function flowerSprite(m, s) {
+    const n = s - 2, grid = Array.from({ length: s }, () => Array(s).fill(null)), dark = shade(m.petal, .22);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const u = (i + .5) / n * 2 - 1, v = (j + .5) / n * 2 - 1, r = Math.hypot(u, v);
+      let hits = 0;
+      for (let k = 0; k < m.petals; k++) {
+        const a = 2 * Math.PI * k / m.petals - Math.PI / 2;
+        const x = u * Math.cos(a) + v * Math.sin(a), y = -u * Math.sin(a) + v * Math.cos(a);
+        if (m.shape === "long"  && ((x - .55) / .45) ** 2 + (y / .19) ** 2 <= 1) hits++;
+        if (m.shape === "round" && (x - .56) ** 2 + y ** 2 <= .38 ** 2) hits++;
+        if (m.shape === "big"   && (x - .52) ** 2 + y ** 2 <= .46 ** 2) hits++;
+      }
+      let c = hits ? m.petal : null;
+      if (hits > 1 && r > .42 && m.shape !== "long") c = C.ink;   // ink line where two petals meet
+      else if (c && r < .5) c = dark;             // deeper colour near the middle
+      if (r <= .3) c = m.center;
+      grid[j + 1][i + 1] = c;
+    }
+    const mid = Math.floor(s / 2);
+    if (grid[mid - 1][mid - 1] === m.center) grid[mid - 1][mid - 1] = C.hi;
+    return outline(grid, C.ink);
+  }
+  function outline(g, ink) {
+    const h = g.length, w = g[0].length, out = g.map(r => r.slice());
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (g[y][x]) continue;
+      if ([[1,0],[-1,0],[0,1],[0,-1]].some(([dx, dy]) => g[y + dy] && g[y + dy][x + dx])) out[y][x] = ink;
+    }
+    return out;
+  }
+  // Turn a colour grid into merged <rect>s (one per horizontal run)
+  function gridSVG(g) {
+    let r = "";
+    g.forEach((row, y) => {
+      for (let x = 0; x < row.length;) {
+        const c = row[x]; let e = x + 1;
+        while (e < row.length && row[e] === c) e++;
+        if (c) r += `<rect x="${x}" y="${y}" width="${e - x}" height="1" fill="${c}"/>`;
+        x = e;
+      }
+    });
+    return r;
+  }
+  const spriteSVG = (m, s, px) => `<svg viewBox="0 0 ${s} ${s}" width="${s * px}" height="${s * px}" aria-hidden="true">${gridSVG(flowerSprite(m, s))}</svg>`;
+
+  /* ---------- The jar scene ---------- */
+  function inJar(x, y) {
+    const dx = Math.abs(x + .5 - 32);
+    if (y === 36) return dx <= 7.5;                      // rim
+    if (y >= 37 && y <= 39) return dx <= 6.5;            // neck
+    if (y === 40) return dx <= 8.5;                      // shoulder
+    if (y >= 41 && y <= 61) return (dx / 11.2) ** 4 + (Math.abs(y + .5 - 51.5) / 10.6) ** 4 <= 1;
+    return false;
+  }
+
+  function scene() {
+    const g = Array.from({ length: G }, () => Array(G).fill(null));
+    const set = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < G && y < G) g[y][x] = c; };
+    const stemCells = new Set(), leafCells = [];
+
+    // stems: base inside the jar, up through the neck, out to the flower
+    data.picks.forEach((id, i) => {
+      if (!id) return;
+      const s = SPOTS[i], off = s.x - 32;
+      const pts = [[32 + off * .2, 59], [32 + off * .05, 37], [s.x, s.y]];
+      for (let p = 0; p < pts.length - 1; p++) {
+        const [x0, y0] = pts[p], [x1, y1] = pts[p + 1], steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 3);
+        for (let t = 0; t <= steps; t++) stemCells.add(`${Math.round(x0 + (x1 - x0) * t / steps)},${Math.round(y0 + (y1 - y0) * t / steps)}`);
+      }
+      const nx = 32 + off * .05, lx = Math.round(nx + (s.x - nx) * .5), ly = Math.round(37 + (s.y - 37) * .5);
+      const d = off < 0 ? -1 : (off > 0 ? 1 : (i % 2 ? 1 : -1));
+      leafCells.push([lx + d, ly, C.leaf], [lx + 2 * d, ly - 1, C.leaf], [lx + d, ly - 1, C.leaf], [lx + 3 * d, ly - 1, C.leafDark], [lx + 2 * d, ly, C.leafDark]);
+    });
+    stemCells.forEach(k => { const [x, y] = k.split(",").map(Number); set(x, y, C.stem); });
+
+    // windowsill
+    for (let x = 3; x <= 60; x++) { set(x, 62, C.sillTop); set(x, 63, C.sill); }
+    for (let x = 22; x <= 44; x++) set(x, 63, C.sillShade);
+
+    // glass jar with water, stems showing through, thicker glass at the edges
+    const jar = Array.from({ length: G }, (_, y) => Array.from({ length: G }, (_, x) => inJar(x, y)));
+    for (let y = 36; y < 62; y++) for (let x = 0; x < G; x++) {
+      if (!jar[y][x]) continue;
+      const edge = !jar[y][x - 1] || !jar[y][x + 1] || !jar[y + 1] || !jar[y + 1][x];
+      const water = y >= 49, stem = stemCells.has(`${x},${y}`);
+      let c = water ? (edge ? C.waterEdge : C.water) : (edge ? C.glassEdge : C.glass);
+      if (stem && !edge) c = water ? C.stemWater : C.stemGlass;
+      if (y === 36) c = stem ? C.stem : C.rim;
+      g[y][x] = c;
+    }
+    // water surface, a few fireflies resting in the jar, glass highlights
+    for (let x = 0; x < G; x++) if (jar[49][x] && g[49][x] === C.water) g[49][x] = C.hi;
+    [[28, 54], [35, 46], [38, 56]].forEach(([x, y]) => g[y][x] = C.glow);
+    for (let y = 44; y <= 55; y++) g[y][24] = C.hi;
+    g[42][25] = C.hi; g[41][26] = C.hi; g[38][28] = C.hi;
+    // ink outline around the jar, leaving the opening clear
+    for (let y = 35; y < 63; y++) for (let x = 0; x < G; x++) {
+      if (jar[y] && jar[y][x]) continue;
+      const near = [[1,0],[-1,0],[0,1],[0,-1]].some(([dx, dy]) => jar[y + dy] && jar[y + dy][x + dx]);
+      if (near && !(y === 35 && Math.abs(x + .5 - 32) < 7)) g[y][x] = C.ink;
+    }
+
+    leafCells.forEach(([x, y, c]) => set(x, y, c));
+
+    const flowers = [];
+    data.picks.forEach((id, i) => {
+      if (!id) return;
+      const s = SPOTS[i], sp = flowerSprite(MOODS.find(m => m.id === id), s.s), h = Math.floor(s.s / 2);
+      sp.forEach((row, yy) => row.forEach((c, xx) => { if (c) set(s.x - h + xx, s.y - h + yy, c); }));
+      flowers.push({ i, x: s.x - h, y: s.y - h, s: s.s });
+    });
+    return { g, flowers };
+  }
+
+  function render(justAdded = -1) {
+    const { g, flowers } = scene();
+    let svg = gridSVG(g);
+    const pop = flowers.find(f => f.i === justAdded);
+    if (pop) svg += `<rect class="pop" x="${pop.x}" y="${pop.y}" width="${pop.s}" height="${pop.s}" fill="transparent"/>`;
+    $("jar").innerHTML = svg;
+    if (pop) { // replay the flower on top with a little pop
+      const m = MOODS.find(x => x.id === data.picks[justAdded]);
+      $("jar").insertAdjacentHTML("beforeend", `<g class="pop">${gridSVG(flowerSprite(m, pop.s)).replace(/x="(\d+)" y="(\d+)"/g, (_, a, b) => `x="${+a + pop.x}" y="${+b + pop.y}"`)}</g>`);
+    }
+    const any = data.picks.some(Boolean);
+    $("hint").hidden = any;
+    $("save").disabled = !any;
+    $("sub").textContent = `Week of ${weekLabel}`;
+
+    $("week").innerHTML = DAYS.map((d, i) => {
+      const m = MOODS.find(x => x.id === data.picks[i]);
+      return `<div class="day ${i === dayIdx ? "today" : ""}" title="${m ? d + ": " + m.label : d}">
+        <div class="slot ${m ? "filled" : ""}">${m ? spriteSVG(m, 11, 2) : ""}</div>${d}</div>`;
+    }).join("");
+
+    const picked = data.picks[dayIdx];
+    $("ask").textContent = picked ? "Today's flower is in the jar ♥" : "How are you feeling today?";
+    $("moods").innerHTML = MOODS.map(m => `
+      <button class="px-btn mood" data-id="${m.id}" aria-pressed="${picked === m.id}">${spriteSVG(m, 13, 2)}${m.label}</button>`).join("");
+    $("moods").querySelectorAll(".mood").forEach(b => b.onclick = () => {
+      data.picks[dayIdx] = data.picks[dayIdx] === b.dataset.id ? null : b.dataset.id;
+      store.set("moodGarden", data);
+      render(dayIdx);
+    });
+  }
+
+  /* ---------- Download the week's bouquet as a pixel-art PNG ---------- */
+  function drawGrid(ctx, g, ox, oy, px) {
+    g.forEach((row, y) => row.forEach((c, x) => { if (c) { ctx.fillStyle = c; ctx.fillRect(ox + x * px, oy + y * px, px, px); } }));
+  }
+  function pixelBox(ctx, x, y, w, h, fill, ink, b) {
+    ctx.fillStyle = ink;
+    ctx.fillRect(x + b, y, w - 2 * b, h); ctx.fillRect(x, y + b, w, h - 2 * b);
+    ctx.fillStyle = fill; ctx.fillRect(x + b, y + b, w - 2 * b, h - 2 * b);
+  }
+
+  async function download() {
+    const W = 1080, H = 1350, c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const ctx = c.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    try { await Promise.all([document.fonts.load('40px "Press Start 2P"'), document.fonts.load('500 40px "Pixelify Sans"')]); } catch (e) {}
+
+    // plain pale background
+    ctx.fillStyle = "#d1ebe8"; ctx.fillRect(0, 0, W, H);
+
+    pixelBox(ctx, 100, 100, 880, 1150, "#e7f3f0", C.ink, 12);
+    ctx.strokeStyle = "#587463"; ctx.lineWidth = 12; ctx.strokeRect(118, 118, 844, 1114);
+    ctx.strokeStyle = "#d1ebe8"; ctx.lineWidth = 12; ctx.strokeRect(130, 130, 820, 1090);
+
+    ctx.textAlign = "center";
+    ctx.font = '52px "Press Start 2P", monospace';
+    ctx.fillStyle = "#3e5a50"; ctx.fillText("Mood garden", W / 2, 250);
+    ctx.font = '500 40px "Pixelify Sans", monospace'; ctx.fillStyle = "#587463";
+    ctx.fillText(`My bouquet for ${weekLabel}`, W / 2, 320);
+
+    drawGrid(ctx, scene().g, (W - G * 11) / 2, 336, 11);
+
+    const startX = W / 2 - 3 * 110;
+    for (let i = 0; i < 7; i++) {
+      const x = startX + i * 110, y = 1085, m = MOODS.find(k => k.id === data.picks[i]);
+      ctx.fillStyle = m ? C.ink : "#bdccbe"; ctx.fillRect(x - 40, y - 40, 80, 80);
+      ctx.fillStyle = m ? "#f3faf8" : "#d1ebe8"; ctx.fillRect(x - 34, y - 34, 68, 68);
+      if (m) drawGrid(ctx, flowerSprite(m, 11), x - 27.5, y - 27.5, 5);
+      ctx.font = '500 30px "Pixelify Sans", monospace'; ctx.fillStyle = "#587463";
+      ctx.fillText(DAYS[i], x, y + 84);
+    }
+
+    const a = document.createElement("a");
+    a.download = `mood-bouquet-${weekKey}.png`;
+    a.href = c.toDataURL("image/png");
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  $("save").onclick = () => download().catch(() => alert("The bouquet couldn't be saved. Try opening the widget in its own tab."));
+
+  setInterval(() => { if (localDate(new Date()) !== localDate(now)) location.reload(); }, 60000);
+  render();
+</script>
+<script>
+  /* Shrinks the widget to fit the Notion embed, whatever size the embed is */
+  (function () {
+    const fit = () => {
+      const card = document.querySelector(".px-card");
+      if (!card) return;
+      card.style.zoom = 1;
+      const pad = 16, w = card.offsetWidth + pad, h = card.offsetHeight + pad;
+      const s = Math.min(1, innerWidth / w, innerHeight / h);
+      card.style.zoom = Math.max(.4, Math.floor(s * 50) / 50);
+    };
+    addEventListener("resize", fit);
+    new ResizeObserver(fit).observe(document.body);
+    if (document.fonts) document.fonts.ready.then(fit);
+    addEventListener("load", fit);
+    fit();
+  })();
+</script>
+</body>
+</html>

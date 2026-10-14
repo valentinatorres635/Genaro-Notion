@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cozy sounds</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
+<script>
+  /* Keeps the page see-through inside Notion. If your Notion is in dark mode, add ?dark to the embed link */
+  if (/[?&]dark\b/.test(location.search)) document.documentElement.style.colorScheme = "dark";
+</script>
+<style>
+  .card { width:100%; max-width:380px; padding:20px 18px 16px; display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; }
+  .intro { display:flex; flex-direction:column; gap:8px; align-items:center; }
+
+
+  .side { display:flex; flex-direction:column; gap:8px; width:100%; }
+  .mixer { display:grid; grid-template-columns:1fr 1fr; gap:12px; width:100%; padding:0 3px; }
+  .sound { display:flex; flex-direction:column; gap:6px; padding:8px 10px; text-align:left; }
+  .sound.on { background:var(--glow); }
+  .sound button { all:unset; cursor:pointer; display:flex; align-items:center; gap:8px; font-family:var(--pixel); font-size:16px; font-weight:500; color:var(--ink); }
+  .sound button:focus-visible { outline:3px dashed var(--forest); outline-offset:3px; }
+  .sound button svg { flex:none; }
+  .sound .state { display:none; } /* the yellow tile shows which sounds are on */
+  .foot { font-size:13px; color:var(--moss); }
+  .foot.blocked { color:var(--ink); background:var(--pink); padding:3px 6px; box-shadow:0 0 0 2px var(--ink); }
+  .foot.blocked[hidden] { display:none; }
+
+  /* ---- banner layout: title on the left, four sounds across ---- */
+  body { padding:12px; }
+  .card { max-width:1200px; padding:18px 22px; display:grid; grid-template-columns:auto 1fr; gap:26px; align-items:center; text-align:left; }
+  .intro { align-items:flex-start; max-width:220px; }
+  .mixer { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; }
+  .sound { padding:10px 12px 8px; gap:8px; }
+  .sound button svg { width:24px; height:24px; }
+  .row-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .row-foot .play { display:inline-flex; align-items:center; gap:8px; font-size:15px; padding:7px 14px; }
+  @media (max-width: 860px) {
+    .card { grid-template-columns:1fr; gap:14px; }
+    .intro { flex-direction:row; align-items:baseline; gap:14px; max-width:none; }
+  }
+  @media (max-width: 560px) {
+    .intro { flex-direction:column; align-items:center; text-align:center; gap:8px; }
+    .mixer { grid-template-columns:1fr 1fr; }
+    .row-foot { flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+<main class="card px-card">
+  <div class="intro">
+    <h1 class="px-title">Cozy sounds</h1>
+    <p class="px-sub">Turn on a sound and listen to the rain ♥</p>
+  </div>
+
+  <div class="side">
+    <div class="mixer" id="mixer"></div>
+    <div class="row-foot">
+      <p class="foot" id="hint">Pick the sounds you like, then press play</p>
+      <button class="px-btn primary play" id="play" disabled><svg id="playIcon" viewBox="0 0 6 6" width="12" height="12" aria-hidden="true"></svg><span id="playText">Getting sounds ready…</span></button>
+    </div>
+    <p class="foot blocked" id="blocked" hidden>Sound was blocked in this view. Open the widget in its own tab (••• → View original).</p>
+  </div>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const saved = store.get("ambience") || {};
+  const settings = { ...saved, sounds: saved.sounds || {} };
+  const save = () => store.set("ambience", settings);
+
+  /* ---------- Pixel art helpers ---------- */
+  function rects(rows, pal) {
+    let r = "";
+    rows.forEach((row, y) => { for (let x = 0; x < row.length;) {
+      const c = row[x]; let e = x + 1; while (e < row.length && row[e] === c) e++;
+      if (pal[c]) r += `<rect x="${x}" y="${y}" width="${e - x}" height="1" fill="${pal[c]}"/>`;
+      x = e;
+    } });
+    return r;
+  }
+  // 10×10 icons for the sounds
+  const ICONS = {
+    rain: { pal:{ o:"#162f2c", p:"#f6fbfa", s:"#bdccbe", b:"#6f95a8" }, rows:[
+      "..oooo....", ".oppppooo.", "opppppppo.", "oppppsppso", ".oooooooo.", "..........", ".b..b..b..", "b..b..b...", "...b..b...", ".........."] },
+    fire: { pal:{ o:"#162f2c", r:"#e3a27f", y:"#f5d79f", w:"#786a5e" }, rows:[
+      "....o.....", "...oro....", "...orro...", "..orrro.o.", ".orryrroro", ".oryyyrro.", ".oryyyyro.", "..oryyro..", ".wwoooowww", ".........."] },
+    cafe: { pal:{ o:"#162f2c", c:"#786a5e", p:"#f6fbfa", s:"#bdccbe" }, rows:[
+      "...s.s....", "..s.s.....", "oooooooo..", "occccccoo.", "oppppppo.o", "oppppppo.o", "oppppppoo.", ".oppppo...", "..oooo....", "ooooooooo."] },
+    wind: { pal:{ o:"#162f2c", l:"#73aa69", g:"#45755c" }, rows:[
+      "......ooo.", "....oollo.", "...ollllo.", "..olllgo..", ".ollgllo..", ".olgllo...", ".oglloo...", "..goo.....", ".g........", ".........."] },
+  };
+  const icon = id => `<svg viewBox="0 0 10 10" width="20" height="20" aria-hidden="true">${rects(ICONS[id].rows.map(r => r.split("")), ICONS[id].pal)}</svg>`;
+
+  /* ================= Cozy sounds =================
+     Each sound is generated once (32-second seamless loop) and then played as a normal looping
+     audio file. Plain <audio> works in more places than live Web Audio, including Notion embeds. */
+  const SOUNDS = [
+    { id:"rain",  label:"Rain" }, { id:"fire", label:"Fireplace" },
+    { id:"cafe", label:"Café" }, { id:"wind", label:"Wind" },
+  ];
+  const LEN = 32, RATE = 32000;
+  const players = {};
+  let playing = false;
+
+  function renderSound(id) {
+    const off = new OfflineAudioContext(1, LEN * RATE, RATE);
+    const n = RATE * 4, white = off.createBuffer(1, n, RATE), brown = off.createBuffer(1, n, RATE);
+    const w = white.getChannelData(0), b = brown.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < n; i++) { w[i] = Math.random() * 2 - 1; last = (last + .02 * (Math.random() * 2 - 1)) / 1.02; b[i] = last * 3.5; }
+    const loop = buf => { const s = off.createBufferSource(); s.buffer = buf; s.loop = true; s.start(0); return s; };
+    const filter = (type, f, q = .7) => { const x = off.createBiquadFilter(); x.type = type; x.frequency.value = f; x.Q.value = q; return x; };
+    const gain = v => { const g = off.createGain(); g.gain.value = v; return g; };
+    const out = gain(1); out.connect(off.destination);
+    const bursts = (min, max, make) => { for (let t = .05; t < LEN - .3; t += (min + Math.random() * (max - min)) / 1000) make(t); };
+    const burst = (t, { dur, freq, level, type = "highpass" }) => {
+      const s = off.createBufferSource(); s.buffer = white;
+      const f = filter(type, freq, type === "bandpass" ? 1.5 : .7), g = gain(0);
+      g.gain.setValueAtTime(level, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      s.connect(f).connect(g).connect(out); s.start(t, Math.random() * 3, dur + .02);
+    };
+    if (id === "rain") {
+      loop(white).connect(filter("highpass", 500)).connect(filter("lowpass", 5000)).connect(gain(.28)).connect(out);
+      loop(brown).connect(filter("lowpass", 900)).connect(gain(.35)).connect(out);
+      bursts(20, 120, t => burst(t, { dur: .03, freq: 2500 + Math.random() * 3000, level: .05 + Math.random() * .08 }));
+    }
+    if (id === "fire") {
+      loop(brown).connect(filter("lowpass", 420)).connect(gain(.55)).connect(out);
+      bursts(40, 260, t => burst(t, { dur: .02 + Math.random() * .05, freq: 1200 + Math.random() * 3500, level: .12 + Math.random() * .35 }));
+    }
+    if (id === "cafe") {
+      // soft room tone
+      loop(brown).connect(filter("lowpass", 350)).connect(gain(.25)).connect(out);
+      // murmur: several distant voices, each a band of noise that rises and falls in syllables
+      const talk = filter("lowpass", 2600); talk.connect(gain(.9)).connect(out);
+      for (let v = 0; v < 7; v++) {
+        const f1 = filter("bandpass", 350 + Math.random() * 450, 3), f2 = filter("bandpass", 1100 + Math.random() * 900, 4);
+        const env = gain(0), mix = gain(1);
+        const src = loop(white); src.connect(f1).connect(mix); src.connect(f2).connect(gain(.5)).connect(mix);
+        mix.connect(env).connect(talk);
+        let t = Math.random() * 2;
+        while (t < LEN - 1) {                       // a phrase of syllables, then a pause
+          const words = 4 + Math.floor(Math.random() * 10);
+          for (let k = 0; k < words && t < LEN - .6; k++) {
+            const len = .09 + Math.random() * .16, peak = .25 + Math.random() * .35;
+            env.gain.setTargetAtTime(peak, t, .025); env.gain.setTargetAtTime(peak * .15, t + len, .03);
+            t += len + .03 + Math.random() * .08;
+          }
+          env.gain.setTargetAtTime(0, t, .08);
+          t += .6 + Math.random() * 2.5;
+        }
+        env.gain.setTargetAtTime(0, LEN - .8, .1);
+      }
+      // cups and spoons clinking now and then
+      const clink = (t) => {
+        [1, 2.76].forEach((m, k) => {
+          const o = off.createOscillator(), g = gain(0), f = 2300 + Math.random() * 1500;
+          o.frequency.value = f * m; o.type = "sine";
+          g.gain.setValueAtTime(k ? .025 : .06, t); g.gain.exponentialRampToValueAtTime(.0001, t + (k ? .15 : .35));
+          o.connect(g).connect(out); o.start(t); o.stop(t + .4);
+        });
+      };
+      for (let t = 1 + Math.random() * 2; t < LEN - 1; t += 2 + Math.random() * 5) { clink(t); if (Math.random() < .35) clink(t + .12 + Math.random() * .1); }
+      // the espresso machine steaming once in the loop
+      const steam = off.createBufferSource(); steam.buffer = white;
+      const sf = filter("highpass", 2500), sg = gain(0), st = 12 + Math.random() * 8;
+      sg.gain.setTargetAtTime(.04, st, .3); sg.gain.setTargetAtTime(0, st + 3.5, .4);
+      steam.connect(sf).connect(sg).connect(out); steam.start(0);
+    }
+    if (id === "wind") {
+      const bp = filter("bandpass", 420, .9), g = gain(.6);
+      loop(brown).connect(bp).connect(g).connect(out);
+      // slow gusts that complete whole cycles inside the loop, so it repeats without a seam
+      const l1 = off.createOscillator(), d1 = gain(260); l1.frequency.value = 2 / LEN; l1.connect(d1).connect(bp.frequency); l1.start(0);
+      const l2 = off.createOscillator(), d2 = gain(.35); l2.frequency.value = 3 / LEN; l2.connect(d2).connect(g.gain); l2.start(0);
+    }
+    return off.startRendering();
+  }
+
+  function toWav(buf) {
+    const data = buf.getChannelData(0), len = data.length, view = new DataView(new ArrayBuffer(44 + len * 2));
+    let peak = 0; for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(data[i]));
+    const scale = peak > .98 ? .98 / peak : 1;
+    const str = (o, t) => [...t].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
+    str(0, "RIFF"); view.setUint32(4, 36 + len * 2, true); str(8, "WAVE"); str(12, "fmt ");
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, buf.sampleRate, true); view.setUint32(28, buf.sampleRate * 2, true);
+    view.setUint16(32, 2, true); view.setUint16(34, 16, true); str(36, "data"); view.setUint32(40, len * 2, true);
+    for (let i = 0; i < len; i++) view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, data[i] * scale)) * 32767, true);
+    return URL.createObjectURL(new Blob([view], { type: "audio/wav" }));
+  }
+
+  const PLAY = rects(["c.....","ccc...","ccccc.","ccccc.","ccc...","c....."].map(r => r.split("")), { c:"currentColor" });
+  const PAUSE = rects(["cc..cc","cc..cc","cc..cc","cc..cc","cc..cc","cc..cc"].map(r => r.split("")), { c:"currentColor" });
+
+  $("mixer").innerHTML = SOUNDS.map(s => {
+    const st = settings.sounds[s.id] || { vol: .5 };
+    return `<div class="sound px-panel" id="s-${s.id}">
+      <button data-id="${s.id}" aria-pressed="false">${icon(s.id)}${s.label}<span class="state"></span></button>
+      <input class="px-range" type="range" min="0" max="1" step="0.01" value="${st.vol}" data-id="${s.id}" aria-label="${s.label} volume">
+    </div>`;
+  }).join("");
+  // which sounds are picked is remembered; playback always starts paused (browsers require a click)
+  SOUNDS.forEach(s => { settings.sounds[s.id] = { vol: .5, on: false, ...(settings.sounds[s.id] || {}) }; });
+
+  function paint() {
+    SOUNDS.forEach(s => {
+      const st = settings.sounds[s.id], box = $("s-" + s.id);
+      box.classList.toggle("on", st.on);
+      box.querySelector("button").setAttribute("aria-pressed", st.on);
+    });
+    const any = SOUNDS.some(s => settings.sounds[s.id].on);
+    $("playIcon").innerHTML = playing ? PAUSE : PLAY;
+    if (!$("play").disabled) $("playText").textContent = playing ? "Pause" : "Play";
+    $("play").setAttribute("aria-label", playing ? "Pause sounds" : "Play sounds");
+    $("hint").textContent = !any ? "Pick the sounds you like, then press play"
+      : playing ? "Playing. Tap a sound to add or remove it" : "Press play to listen";
+  }
+
+  function apply(id) {
+    const p = players[id], st = settings.sounds[id];
+    if (!p) return;
+    p.volume = st.vol;
+    if (playing && st.on) { if (p.paused) p.play().catch(blocked); }
+    else if (!p.paused) p.pause();
+  }
+  function blocked() { $("blocked").hidden = false; playing = false; paint(); }
+
+  $("play").onclick = () => {
+    if (!SOUNDS.some(s => settings.sounds[s.id].on)) settings.sounds.rain.on = true; // nothing picked yet: start with rain
+    playing = !playing;
+    $("blocked").hidden = true;
+    SOUNDS.forEach(s => apply(s.id));
+    paint(); save();
+  };
+  $("mixer").querySelectorAll("button").forEach(b => b.onclick = () => {
+    const st = settings.sounds[b.dataset.id]; st.on = !st.on;
+    apply(b.dataset.id); paint(); save();
+  });
+  $("mixer").querySelectorAll("input").forEach(r => r.oninput = () => {
+    settings.sounds[r.dataset.id].vol = +r.value;
+    apply(r.dataset.id); save();
+  });
+
+  // pause everything if the page is hidden by Notion or the browser stops one of the sounds
+  document.addEventListener("visibilitychange", () => { if (document.hidden && playing) { playing = false; SOUNDS.forEach(s => apply(s.id)); paint(); } });
+
+  (async () => {
+    paint();
+    try {
+      for (const s of SOUNDS) {
+        const a = new Audio(toWav(await renderSound(s.id)));
+        a.loop = true; a.preload = "auto"; a.volume = settings.sounds[s.id].vol;
+        players[s.id] = a;
+      }
+      $("play").disabled = false;
+    } catch (e) {
+      $("playText").textContent = "Sounds unavailable";
+      $("hint").textContent = "This browser can't make the sounds. Try Chrome, Edge, Firefox or Safari.";
+      return;
+    }
+    paint();
+  })();
+</script>
+<script>
+  /* Shrinks the widget to fit the Notion embed, whatever size the embed is */
+  (function () {
+    const fit = () => {
+      const card = document.querySelector(".px-card");
+      if (!card) return;
+      card.style.zoom = 1;
+      const pad = 16, w = card.offsetWidth + pad, h = card.offsetHeight + pad;
+      const s = Math.min(1, innerWidth / w, innerHeight / h);
+      card.style.zoom = Math.max(.4, Math.floor(s * 50) / 50);
+    };
+    addEventListener("resize", fit);
+    new ResizeObserver(fit).observe(document.body);
+    if (document.fonts) document.fonts.ready.then(fit);
+    addEventListener("load", fit);
+    fit();
+  })();
+</script>
+</body>
+</html>

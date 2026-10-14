@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo of the day</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
+<script>
+  /* Keeps the page see-through inside Notion. If your Notion is in dark mode, add ?dark to the embed link */
+  if (/[?&]dark\b/.test(location.search)) document.documentElement.style.colorScheme = "dark";
+</script>
+<style>
+  .card { width:100%; max-width:480px; padding:20px 20px 18px; display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; }
+  .photo { position:relative; width:100%; aspect-ratio:4/3; overflow:hidden; background:var(--pale);
+           box-shadow:0 0 0 3px var(--ink), 0 0 0 7px var(--sage), 0 0 0 10px var(--ink); margin:8px 0 6px; }
+  .slide { position:absolute; inset:0; opacity:0; transition:opacity .8s steps(6); }
+  .slide.show { opacity:1; }
+  .slide .fill { position:absolute; inset:-24px; background-size:cover; background-position:center;
+                 filter:blur(18px) saturate(.8) brightness(.95); }
+  .slide img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; object-position:center; image-rendering:auto; }
+  /* soft rainy-window tint and pixel corner notches */
+  .photo::after { content:""; position:absolute; inset:0; pointer-events:none; z-index:2;
+    background:linear-gradient(160deg, rgba(180,225,221,.18), transparent 40%, rgba(22,47,44,.18)); }
+  .empty { position:absolute; inset:0; display:grid; place-items:center; padding:24px; z-index:3; font-size:16px; color:var(--moss); }
+  .empty[hidden] { display:none; }
+  .bar { display:flex; align-items:center; justify-content:center; gap:10px; }
+  .bar .arrow { width:40px; height:36px; font-family:var(--title); font-size:12px; padding:0; }
+  .count { font-size:14px; color:var(--moss); }
+  .px-dots { max-width:260px; min-height:10px; }
+  @media (prefers-reduced-motion: reduce) { .slide { transition:none; } }
+</style>
+</head>
+<body>
+<main class="card px-card">
+  <h1 class="px-title">Photo of the day</h1>
+  <p class="px-sub" id="sub">&nbsp;</p>
+  <div class="photo" id="photo">
+    <div class="slide" id="slideA"><div class="fill"></div><img alt=""></div>
+    <div class="slide" id="slideB"><div class="fill"></div><img alt=""></div>
+    <div class="empty" id="empty">Loading your photos…</div>
+  </div>
+  <div class="bar">
+    <button class="px-btn arrow" id="prev" aria-label="Previous photo">◀</button>
+    <button class="px-btn primary" id="today" hidden>Today's photo ♥</button>
+    <button class="px-btn arrow" id="next" aria-label="Next photo">▶</button>
+  </div>
+  <div class="px-dots" id="dots"></div>
+</main>
+
+<script>
+  /* ---------- Settings ----------
+     On GitHub Pages (username.github.io/repo) the user and repo are detected automatically.
+     Fill these in only if you host the page somewhere else. */
+  const GITHUB_USER = "";
+  const GITHUB_REPO = "";
+  const BRANCH = "main";
+  const FOLDER = "pics";
+  /* Optional: list files here by hand to skip the GitHub lookup, e.g. ["beach.jpg", "tea.png"] */
+  const MANUAL_LIST = [];
+  /* -------------------------------- */
+
+  const $ = id => document.getElementById(id);
+  const IMAGE = /\.(jpe?g|png|gif|webp|avif)$/i;
+  const todayKey = new Date().toLocaleDateString("en-CA");
+  const dayNumber = Math.floor(new Date(todayKey + "T00:00:00Z") / 86400000);
+  let photos = [], current = 0, dailyIndex = 0, front = $("slideA"), back = $("slideB");
+
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  function repoInfo() {
+    if (GITHUB_USER && GITHUB_REPO) return { user: GITHUB_USER, repo: GITHUB_REPO };
+    const host = location.hostname.match(/^([^.]+)\.github\.io$/);
+    if (!host) return null;
+    const first = location.pathname.split("/").filter(Boolean)[0];
+    return { user: host[1], repo: first && !first.includes(".") ? first : `${host[1]}.github.io` };
+  }
+
+  async function loadList() {
+    if (MANUAL_LIST.length) return MANUAL_LIST.slice().sort();
+    const cached = store.get("photoList");
+    if (cached && cached.day === todayKey && cached.files.length) return cached.files;
+    const info = repoInfo();
+    try {
+      if (!info) throw new Error("no repo");
+      const res = await fetch(`https://api.github.com/repos/${info.user}/${info.repo}/contents/${FOLDER}?ref=${BRANCH}`);
+      if (!res.ok) throw new Error(res.status);
+      const files = (await res.json()).filter(f => f.type === "file" && IMAGE.test(f.name)).map(f => f.name)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      store.set("photoList", { day: todayKey, files });
+      return files;
+    } catch (e) { return cached ? cached.files : []; }
+  }
+
+  function paintDots() {
+    const box = $("dots");
+    if (photos.length > 20) { box.innerHTML = `<b class="count" style="font-weight:500">${current + 1} / ${photos.length}</b>`; return; }
+    box.innerHTML = photos.map((_, i) => `<span class="${i === current ? "on" : ""} ${i === dailyIndex ? "mark" : ""}"></span>`).join("");
+  }
+
+  function show(i) {
+    current = (i + photos.length) % photos.length;
+    const src = `${FOLDER}/${encodeURIComponent(photos[current])}`;
+    const img = back.querySelector("img");
+    img.onload = () => {
+      back.querySelector(".fill").style.backgroundImage = `url("${src}")`;
+      back.classList.add("show"); front.classList.remove("show");
+      [front, back] = [back, front];
+    };
+    img.src = src;
+    $("today").hidden = current === dailyIndex;
+    paintDots();
+    store.set("photoPick", { day: todayKey, index: current });
+  }
+
+  $("sub").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+
+  async function init() {
+    photos = await loadList();
+    if (!photos.length) {
+      $("empty").textContent = repoInfo() || MANUAL_LIST.length
+        ? `Add photos to the “${FOLDER}” folder, then refresh.`
+        : "Open this page from GitHub Pages, or fill in GITHUB_USER and GITHUB_REPO in the file.";
+      $("prev").disabled = $("next").disabled = true;
+      return;
+    }
+    $("empty").hidden = true;
+    dailyIndex = dayNumber % photos.length;
+    const pick = store.get("photoPick");
+    show(pick && pick.day === todayKey && pick.index < photos.length ? pick.index : dailyIndex);
+  }
+
+  $("prev").onclick = () => photos.length && show(current - 1);
+  $("next").onclick = () => photos.length && show(current + 1);
+  $("today").onclick = () => show(dailyIndex);
+  document.addEventListener("keydown", e => {
+    if (!photos.length) return;
+    if (e.key === "ArrowLeft") show(current - 1);
+    if (e.key === "ArrowRight") show(current + 1);
+  });
+  let startX = null;
+  $("photo").addEventListener("touchstart", e => startX = e.touches[0].clientX, { passive: true });
+  $("photo").addEventListener("touchend", e => {
+    if (startX === null || !photos.length) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    if (Math.abs(dx) > 40) show(current + (dx < 0 ? 1 : -1));
+    startX = null;
+  });
+  setInterval(() => { if (new Date().toLocaleDateString("en-CA") !== todayKey) location.reload(); }, 60000);
+  init();
+</script>
+<script>
+  /* Shrinks the widget to fit the Notion embed, whatever size the embed is */
+  (function () {
+    const fit = () => {
+      const card = document.querySelector(".px-card");
+      if (!card) return;
+      card.style.zoom = 1;
+      const pad = 16, w = card.offsetWidth + pad, h = card.offsetHeight + pad;
+      const s = Math.min(1, innerWidth / w, innerHeight / h);
+      card.style.zoom = Math.max(.4, Math.floor(s * 50) / 50);
+    };
+    addEventListener("resize", fit);
+    new ResizeObserver(fit).observe(document.body);
+    if (document.fonts) document.fonts.ready.then(fit);
+    addEventListener("load", fit);
+    fit();
+  })();
+</script>
+</body>
+</html>
