@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pomodoro Timer</title>
+<!--
+  Based on "Pomodoro Timer" by Adrianne Sebastian (https://codepen.io/arcsbstn/pen/ExEJvxM),
+  rebuilt without React and recoloured.
+
+  The MIT License (MIT)
+  Copyright (c) 2022 Adrianne Sebastian (https://codepen.io/arcsbstn/pen/ExEJvxM)
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+  associated documentation files (the "Software"), to deal in the Software without restriction, including
+  without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the
+  following conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies or substantial
+  portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+  LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
+  EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+  IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+  THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@600&display=swap" rel="stylesheet">
+<style>
+  /* Palette: #041421 · #042630 · #4c7273 · #86b9b0 · #d0d6d6 */
+  :root {
+    --night:#041421; --deep:#042630; --slate:#4c7273; --sea:#86b9b0; --mist:#d0d6d6;
+    /* the solid offset shadows that give this timer its look; set to "none" to remove them */
+    --card-shadow:10px 10px 0 var(--deep);
+    --btn-shadow:.2em .2em 0 var(--night);
+    --inset:inset 3px 3px 0 var(--slate);
+  }
+  * { box-sizing:border-box; margin:0; }
+  html, body { height:100%; background:transparent !important; }
+  :root { color-scheme:light; }
+  body { font-family:"Roboto Mono", ui-monospace, monospace; font-weight:600; color:var(--night);
+         display:grid; place-items:center; overflow:hidden; padding:10px 20px 20px 10px; }
+
+  .clock { width:350px; padding:30px; border-radius:20px; background:var(--mist); box-shadow:var(--card-shadow); }
+
+  #time-left { font-size:70px; line-height:1.1; text-align:center; padding:20px; border-radius:20px;
+               background:var(--sea); box-shadow:var(--inset); font-variant-numeric:tabular-nums; }
+
+  .display-controls { margin:10px 0; display:flex; align-items:center; justify-content:space-between; }
+  #timer-label { flex:2; height:40px; display:grid; place-items:center; font-size:25px;
+                 background:var(--sea); border-radius:10px; box-shadow:var(--inset); }
+  .ssr { margin-left:20px; display:flex; gap:12px; }
+
+  button {
+    width:42px; height:40px; border:none; border-radius:100%; cursor:pointer; padding:0;
+    display:grid; place-items:center; color:var(--mist); background:var(--slate); box-shadow:var(--btn-shadow);
+    transition:translate .08s, box-shadow .08s;
+  }
+  button svg { width:16px; height:16px; }
+  button:active { translate:.2em .2em; box-shadow:inset .2em .2em 0 var(--night); }
+  button:hover { background:var(--deep); }
+  button:focus-visible { outline:2px solid var(--deep); outline-offset:3px; }
+  button:disabled { opacity:.4; cursor:default; }
+  button:disabled:active { translate:none; box-shadow:var(--btn-shadow); }
+
+  .lengths { margin-top:20px; display:flex; gap:4%; }
+  .length { width:48%; text-align:center; padding:10px; border-radius:10px; border:2px solid var(--slate); }
+  .length .label { font-size:13px; white-space:nowrap; }
+  .timer-length { display:block; font-size:2em; line-height:1.4; }
+  .inc-dec { display:flex; justify-content:center; gap:12px; }
+
+  /* running session pulses the display very gently */
+  .running #time-left { animation:breathe 4s ease-in-out infinite; }
+  @keyframes breathe { 50% { background:#86b9b0e6; } }
+  @media (prefers-reduced-motion: reduce) { .running #time-left { animation:none; } button { transition:none; } }
+</style>
+</head>
+<body>
+<div class="clock" id="clock">
+  <div id="time-left" role="timer" aria-live="off">25:00</div>
+
+  <div class="display-controls">
+    <div id="timer-label">Session</div>
+    <div class="ssr">
+      <button id="start-stop" aria-label="Start"></button>
+      <button id="reset" aria-label="Reset">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="lengths">
+    <div class="length">
+      <div class="label" id="break-label">Break Length</div>
+      <span class="timer-length" id="break-length">5</span>
+      <div class="inc-dec">
+        <button data-k="break" data-d="1" aria-label="Longer break"></button>
+        <button data-k="break" data-d="-1" aria-label="Shorter break"></button>
+      </div>
+    </div>
+    <div class="length">
+      <div class="label" id="session-label">Session Length</div>
+      <span class="timer-length" id="session-length">25</span>
+      <div class="inc-dec">
+        <button data-k="session" data-d="1" aria-label="Longer session"></button>
+        <button data-k="session" data-d="-1" aria-label="Shorter session"></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const ICON = {
+    play:  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.4-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>',
+    up:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V4M5 11l7-7 7 7"/></svg>',
+    down:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16M5 13l7 7 7-7"/></svg>',
+  };
+  document.querySelectorAll("[data-d]").forEach(b => b.innerHTML = b.dataset.d > 0 ? ICON.up : ICON.down);
+
+  const DEFAULT = { break: 5, session: 25 };
+  const store = {
+    get() { try { return JSON.parse(localStorage.getItem("pomofocus")) || {}; } catch (e) { return {}; } },
+    set(v) { try { localStorage.setItem("pomofocus", JSON.stringify(v)); } catch (e) {} },
+  };
+  const len = { ...DEFAULT, ...store.get() };
+  let type = "session", left = len.session * 60, running = false, end = 0, tick = null;
+
+  function paint() {
+    const m = String(Math.floor(left / 60)).padStart(2, "0"), s = String(left % 60).padStart(2, "0");
+    $("time-left").textContent = `${m}:${s}`;
+    $("timer-label").textContent = type === "session" ? "Session" : "Break";
+    $("break-length").textContent = len.break;
+    $("session-length").textContent = len.session;
+    $("start-stop").innerHTML = running ? ICON.pause : ICON.play;
+    $("start-stop").setAttribute("aria-label", running ? "Pause" : "Start");
+    document.querySelectorAll("[data-d]").forEach(b => b.disabled = running);
+    $("clock").classList.toggle("running", running && type === "session");
+    document.title = running ? `${m}:${s} · ${type === "session" ? "Session" : "Break"}` : "Pomodoro Timer";
+  }
+
+  // a soft two-note bell, made in the browser (no sound file needed)
+  function bell() {
+    try {
+      const a = new (window.AudioContext || window.webkitAudioContext)();
+      [[659, 0], [988, .25], [1319, .5]].forEach(([f, t]) => {
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = "sine"; o.frequency.value = f;
+        g.gain.setValueAtTime(.0001, a.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(.18, a.currentTime + t + .02);
+        g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + t + 1.4);
+        o.connect(g).connect(a.destination); o.start(a.currentTime + t); o.stop(a.currentTime + t + 1.5);
+      });
+    } catch (e) {}
+  }
+
+  function start() {
+    running = true; end = Date.now() + left * 1000;
+    clearInterval(tick);
+    tick = setInterval(() => {
+      left = Math.max(0, Math.round((end - Date.now()) / 1000));
+      if (left === 0) {                     // switch session <-> break and keep going, like the original
+        bell();
+        type = type === "session" ? "break" : "session";
+        left = len[type] * 60; end = Date.now() + left * 1000;
+      }
+      paint();
+    }, 250);
+    paint();
+  }
+  function stop() { running = false; clearInterval(tick); paint(); }
+
+  $("start-stop").onclick = () => running ? stop() : start();
+  $("reset").onclick = () => {
+    stop();
+    Object.assign(len, DEFAULT); store.set(len);
+    type = "session"; left = len.session * 60; paint();
+  };
+  document.querySelectorAll("[data-d]").forEach(b => b.onclick = () => {
+    if (running) return;
+    const k = b.dataset.k, v = len[k] + Number(b.dataset.d);
+    if (v < 1 || v > 60) return;
+    len[k] = v; store.set(len);
+    if (type === k) left = v * 60;          // changing the current phase updates the clock
+    paint();
+  });
+
+  /* shrink to fit the Notion embed */
+  (function () {
+    const fit = () => {
+      const c = $("clock"); c.style.zoom = 1;
+      const w = c.offsetWidth + 30, h = c.offsetHeight + 30;
+      c.style.zoom = Math.max(.4, Math.floor(Math.min(1, innerWidth / w, innerHeight / h) * 50) / 50);
+    };
+    addEventListener("resize", fit); new ResizeObserver(fit).observe(document.body);
+    if (document.fonts) document.fonts.ready.then(fit);
+    fit();
+  })();
+
+  paint();
+</script>
+</body>
+</html>
